@@ -12,18 +12,27 @@ endif(MSVC)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
-ADD_EXECUTABLE(unwind_c_stack ${CMAKE_SOURCE_DIR}/test/unwind_c_stack.cpp)
-ADD_EXECUTABLE(unwind_cpp_stack ${CMAKE_SOURCE_DIR}/test/unwind_cpp_stack.cpp)
-ADD_EXECUTABLE(unwind_ptrace_stack ${CMAKE_SOURCE_DIR}/test/unwind_ptrace_stack.cpp)
+FIND_PACKAGE(PythonLibs 2.7 REQUIRED)
+FIND_PACKAGE(PythonInterp 2.7 REQUIRED)
 
-target_link_libraries(unwind_c_stack unwind)
-target_link_libraries(unwind_cpp_stack unwind)
-target_link_libraries(unwind_ptrace_stack unwind unwind-ptrace unwind-generic)
+include_directories(${PYTHON_INCLUDE_DIRS})
 
 file(GLOB_RECURSE SRC_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 add_library(${CMAKE_PROJECT_NAME} ${SRC_FILES})
-target_link_libraries(${CMAKE_PROJECT_NAME} expected unwind unwind-ptrace unwind-generic python)
+target_link_libraries(${CMAKE_PROJECT_NAME} unwind unwind-ptrace unwind-generic ${PYTHON_LIBRARIES})
+
+
+ADD_EXECUTABLE(unwind_c_stack ${CMAKE_SOURCE_DIR}/test/unwind_c_stack.cpp)
+ADD_EXECUTABLE(unwind_cpp_stack ${CMAKE_SOURCE_DIR}/test/unwind_cpp_stack.cpp)
+ADD_EXECUTABLE(unwind_ptrace_stack ${CMAKE_SOURCE_DIR}/test/unwind_ptrace_stack.cpp)
+ADD_EXECUTABLE(unwind_python_stack ${CMAKE_SOURCE_DIR}/test/unwind_py_stack.cpp)
+
+target_link_libraries(unwind_c_stack unwind)
+target_link_libraries(unwind_cpp_stack unwind)
+target_link_libraries(unwind_ptrace_stack unwind unwind-ptrace unwind-generic)
+target_link_libraries(unwind_python_stack ${CMAKE_PROJECT_NAME})
+
 
 foreach(p LIB INCLUDE)
 	set(var CMAKE_INSTALL_${p}DIR)
