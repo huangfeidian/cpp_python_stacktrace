@@ -216,9 +216,11 @@ namespace spiritsaway::cpy_frame
 	static unsigned long AllocPage(pid_t pid)
 	{
 		user_regs_struct oldregs = ptrace_get_regs(pid);
+		// rip 指令为x64架构下的程序计数器 保存的是下一个要执行的指令id
 		long orig_code = ptrace_peek(pid, (void*)oldregs.rip);
 		ptrace_poke(pid, (void*)oldregs.rip, (void*)syscall_x86);
-
+		// 这个是设置rip为syscall_x86 然后下面的参数是调用syscall 的相关参数
+		// 意思就是分配一页内存区域
 		user_regs_struct newregs = oldregs;
 		newregs.rax = SYS_mmap;
 		newregs.rdi = 0;                                   // addr
@@ -228,10 +230,13 @@ namespace spiritsaway::cpy_frame
 		newregs.r8 = -1;                                   // fd
 		newregs.r9 = 0;                                    // offset
 		ptrace_set_regs(pid, newregs);
+		// 设置好所有寄存器之后 单步执行这个系统调用
 		ptrace_single_step(pid);
+		// x64架构下 如果返回单个整数 结果会存储在rax寄存器里
 		unsigned long result = ptrace_get_regs(pid).rax;
-
+		// 再恢复原来的现场
 		ptrace_set_regs(pid, oldregs);
+		// 重新恢复之前的程序计数器
 		ptrace_poke(pid, (void*)oldregs.rip, (void*)orig_code);
 
 		return result;
@@ -272,6 +277,9 @@ namespace spiritsaway::cpy_frame
 
 	long ptrace_call_function(pid_t pid, long addr)
 	{
+		// 这里会预先分配一页内存区，然后内存区的前三个字节里有两个指令
+		// 第一条是call rax 就是将rax里的函数指针执行
+		// 第二条就是trap 相当于call rax之后进入中断
 		if (probe_ == 0) {
 			PauseChildThreads(pid);
 			probe_ = AllocPage(pid);
@@ -290,15 +298,21 @@ namespace spiritsaway::cpy_frame
 
 		user_regs_struct oldregs = ptrace_get_regs(pid);
 		user_regs_struct newregs = oldregs;
+		// 这里的操作就是把返回地址寄存器rip的值设置为我们之前定好的prob
+		// 同时设置rax为我们要调用的函数指针
 		newregs.rax = addr;
 		newregs.rip = probe_;
-
+		// 设置好之后 恢复原来程序的执行
+		// 恢复之后就会自动的执行addr对应的函数 然后进入中断
 		ptrace_set_regs(pid, newregs);
 		ptrace_condition(pid);
 		ptrace_wait(pid);
-
+		// 这里addr的函数执行完成，对应的返回值会再rax寄存器里
 		newregs = ptrace_get_regs(pid);
+		// 再恢复原来的现场
 		ptrace_set_regs(pid, oldregs);
+
+		// 目前的限制好像是必须调用的是无参数的函数
 		return newregs.rax;
 	};
 }
